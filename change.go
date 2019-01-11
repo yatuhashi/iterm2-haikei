@@ -1,17 +1,55 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/nfnt/resize"
 	"image"
 	"image/draw"
 	"image/jpeg"
+	_ "image/jpeg"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+func dirwalk(dir string) []string {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		panic(err)
+	}
+
+	var paths []string
+	for _, file := range files {
+		if file.IsDir() {
+			paths = append(paths, dirwalk(filepath.Join(dir, file.Name()))...)
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, file.Name()))
+	}
+	return paths
+}
+
+func ImgResize(Img string) (image.Image, error) {
+	pos := strings.LastIndex(Img, ".")
+	if Img[pos:] != ".jpg" {
+		return nil, errors.New("This file is not jpeg")
+	}
+	imgRawdata, err := os.Open(Img)
+	defer imgRawdata.Close()
+	if err != nil {
+		return nil, err
+	}
+	imgData, _, err := image.Decode(imgRawdata)
+	if err != nil {
+		return nil, err
+	}
+	reImg := resize.Resize(960, 0, imgData, resize.Lanczos3)
+	return reImg, nil
+}
 
 func Shiro() image.Image {
 	x := 0
@@ -25,7 +63,7 @@ func Shiro() image.Image {
 	return img
 }
 
-func Gousei(Img1data, Img2data image.Image) {
+func Synthesis(Img1data, Img2data image.Image) {
 
 	ShiroImgdata := Shiro()
 
@@ -56,51 +94,25 @@ func Gousei(Img1data, Img2data image.Image) {
 	jpeg.Encode(out, rgba, &opt)
 }
 
-func dirwalk(dir string) []string {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		panic(err)
-	}
-
-	var paths []string
-	for _, file := range files {
-		if file.IsDir() {
-			paths = append(paths, dirwalk(filepath.Join(dir, file.Name()))...)
-			continue
-		}
-		paths = append(paths, filepath.Join(dir, file.Name()))
-	}
-	return paths
-}
-
-func ImgResize(Img1, Img2 string) (image.Image, image.Image) {
-	img1rawdata, err := os.Open(Img1)
-	if err != nil {
-		fmt.Println(err)
-	}
-	img2rawdata, err := os.Open(Img2)
-	if err != nil {
-		fmt.Println(err)
-	}
-	img1data, _, err := image.Decode(img1rawdata)
-	if err != nil {
-		fmt.Println(err)
-	}
-	img2data, _, err := image.Decode(img2rawdata)
-	if err != nil {
-		fmt.Println(err)
-	}
-	reimg1 := resize.Resize(960, 0, img1data, resize.Lanczos3)
-	reimg2 := resize.Resize(960, 0, img2data, resize.Lanczos3)
-	return reimg1, reimg2
-}
-
 func main() {
 	rand.Seed(time.Now().Unix())
 	pics := dirwalk("/Users/yatuhashi/Pictures/Fate/Haikei")
-	Img1 := fmt.Sprint(pics[rand.Intn(len(pics))])
-	Img2 := fmt.Sprint(pics[rand.Intn(len(pics))])
-	// fmt.Println(Img1, Img2)
-	reimg1, reimg2 := ImgResize(Img1, Img2)
-	Gousei(reimg1, reimg2)
+	var reimg1 image.Image
+	var reimg2 image.Image
+	var err error
+	for {
+		Img1 := fmt.Sprint(pics[rand.Intn(len(pics))])
+		reimg1, err = ImgResize(Img1)
+		if err == nil {
+			break
+		}
+	}
+	for {
+		Img2 := fmt.Sprint(pics[rand.Intn(len(pics))])
+		reimg2, err = ImgResize(Img2)
+		if err == nil {
+			break
+		}
+	}
+	Synthesis(reimg1, reimg2)
 }
